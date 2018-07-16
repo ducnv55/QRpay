@@ -1,0 +1,3 @@
+github "facebook/Facebook-SDK-Swift"
+github "rs/SDWebImage"
+github "Alamofire/Alamofire" ~> 4.7
