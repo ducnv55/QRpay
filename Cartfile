@@ -1,3 +1,4 @@
 github "facebook/Facebook-SDK-Swift"
 github "rs/SDWebImage"
 github "Alamofire/Alamofire" ~> 4.7
+github "swiftsocket/SwiftSocket"

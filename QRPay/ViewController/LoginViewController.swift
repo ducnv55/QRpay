@@ -10,13 +10,16 @@ import UIKit
 import FBSDKLoginKit
 import FacebookCore
 import FacebookLogin
+import FBSDKShareKit
 import Alamofire
 
-class LoginViewController: UIViewController {
+class LoginViewController: BaseViewController {
 
+    @IBOutlet var mainView: UIView!
+    
     override func viewDidLoad() {
         super.viewDidLoad()
-        
+        mainView.backgroundColor = UIColor(patternImage: #imageLiteral(resourceName: "login-bg1"))
     }
 
     @IBAction func login(_ sender: Any) {

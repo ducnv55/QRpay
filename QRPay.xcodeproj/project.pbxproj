@@ -21,6 +21,9 @@
 		8E20D26120B69F8A00B2D441 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 8E20D25F20B69F8A00B2D441 /* LaunchScreen.storyboard */; };
 		8E20D26C20B69F8B00B2D441 /* QRPayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E20D26B20B69F8B00B2D441 /* QRPayTests.swift */; };
 		8E20D27820B6A1DE00B2D441 /* QRScanViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E20D27720B6A1DE00B2D441 /* QRScanViewController.swift */; };
+		8E8B93EB2101D9B5000F9647 /* SwiftSocket.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E8B93EA2101D9B5000F9647 /* SwiftSocket.framework */; };
+		8E8B93EC2101D9BF000F9647 /* SwiftSocket.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E8B93EA2101D9B5000F9647 /* SwiftSocket.framework */; };
+		8E8B93ED2101D9BF000F9647 /* SwiftSocket.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 8E8B93EA2101D9B5000F9647 /* SwiftSocket.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		8E8EAE6420F89AE000C21163 /* FBSDKCoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8EB9277620C0F5360076067F /* FBSDKCoreKit.framework */; };
 		8E8EAE6520F89AE000C21163 /* FBSDKCoreKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 8EB9277620C0F5360076067F /* FBSDKCoreKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		8E8EAE6620F89AE000C21163 /* FBSDKLoginKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8EB9277520C0F5360076067F /* FBSDKLoginKit.framework */; };
@@ -34,6 +37,7 @@
 		8E8EAE7020F8B44A00C21163 /* BuyCoinViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E8EAE6F20F8B44A00C21163 /* BuyCoinViewController.swift */; };
 		8EA9781420B7C2B200E7BD3C /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EA9781320B7C2B200E7BD3C /* Product.swift */; };
 		8EB9274B20C0EE7E0076067F /* LoginViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB9274A20C0EE7E0076067F /* LoginViewController.swift */; };
+		8EDA7DED20FF1C400032B662 /* MyPageViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EDA7DEC20FF1C400032B662 /* MyPageViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -60,6 +64,7 @@
 				8E0EA8C320FC80BC005A7CAE /* Alamofire.framework in Embed Frameworks */,
 				8E0EA8BF20FC7C22005A7CAE /* SDWebImage.framework in Embed Frameworks */,
 				8E8EAE6520F89AE000C21163 /* FBSDKCoreKit.framework in Embed Frameworks */,
+				8E8B93ED2101D9BF000F9647 /* SwiftSocket.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -83,6 +88,7 @@
 		8E20D26B20B69F8B00B2D441 /* QRPayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRPayTests.swift; sourceTree = "<group>"; };
 		8E20D26D20B69F8B00B2D441 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		8E20D27720B6A1DE00B2D441 /* QRScanViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScanViewController.swift; sourceTree = "<group>"; };
+		8E8B93EA2101D9B5000F9647 /* SwiftSocket.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftSocket.framework; path = Carthage/Build/iOS/SwiftSocket.framework; sourceTree = "<group>"; };
 		8E8EAE6F20F8B44A00C21163 /* BuyCoinViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuyCoinViewController.swift; sourceTree = "<group>"; };
 		8EA9781320B7C2B200E7BD3C /* Product.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Product.swift; sourceTree = "<group>"; };
 		8EB9274A20C0EE7E0076067F /* LoginViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewController.swift; sourceTree = "<group>"; };
@@ -91,6 +97,7 @@
 		8EB9277020C0F4F90076067F /* FacebookCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = FacebookCore.framework; sourceTree = "<group>"; };
 		8EB9277520C0F5360076067F /* FBSDKLoginKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = FBSDKLoginKit.framework; sourceTree = "<group>"; };
 		8EB9277620C0F5360076067F /* FBSDKCoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = FBSDKCoreKit.framework; sourceTree = "<group>"; };
+		8EDA7DEC20FF1C400032B662 /* MyPageViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyPageViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -103,8 +110,10 @@
 				8E8EAE6620F89AE000C21163 /* FBSDKLoginKit.framework in Frameworks */,
 				8E8EAE6A20F89AE000C21163 /* FacebookLogin.framework in Frameworks */,
 				8E0EA8C220FC80BC005A7CAE /* Alamofire.framework in Frameworks */,
+				8E8B93EC2101D9BF000F9647 /* SwiftSocket.framework in Frameworks */,
 				8E0EA8BE20FC7C22005A7CAE /* SDWebImage.framework in Frameworks */,
 				8E8EAE6420F89AE000C21163 /* FBSDKCoreKit.framework in Frameworks */,
+				8E8B93EB2101D9B5000F9647 /* SwiftSocket.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -178,6 +187,7 @@
 				8EB9274A20C0EE7E0076067F /* LoginViewController.swift */,
 				8E8EAE6F20F8B44A00C21163 /* BuyCoinViewController.swift */,
 				8E0EA8B720FC3E92005A7CAE /* HomeViewController.swift */,
+				8EDA7DEC20FF1C400032B662 /* MyPageViewController.swift */,
 			);
 			path = ViewController;
 			sourceTree = "<group>";
@@ -193,6 +203,7 @@
 		8EB9275620C0F16C0076067F /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				8E8B93EA2101D9B5000F9647 /* SwiftSocket.framework */,
 				8E0EA8C020FC80B4005A7CAE /* Alamofire.framework */,
 				8E0EA8BC20FC7AF7005A7CAE /* SDWebImage.framework */,
 				8EB9277620C0F5360076067F /* FBSDKCoreKit.framework */,
@@ -311,6 +322,7 @@
 				8E8EAE7020F8B44A00C21163 /* BuyCoinViewController.swift in Sources */,
 				8E0EA8B820FC3E92005A7CAE /* HomeViewController.swift in Sources */,
 				8E20D25920B69F8700B2D441 /* ViewController.swift in Sources */,
+				8EDA7DED20FF1C400032B662 /* MyPageViewController.swift in Sources */,
 				8EB9274B20C0EE7E0076067F /* LoginViewController.swift in Sources */,
 				8E0EA8B620FC3D7E005A7CAE /* BaseViewController.swift in Sources */,
 				8E20D25720B69F8700B2D441 /* AppDelegate.swift in Sources */,

@@ -9,10 +9,11 @@
 import Foundation
 
 class Const {
-    static let baseUrl: String = "http://192.168.0.253:8080/"
+    static let baseUrl: String = "http://192.168.0.253:8000/"
     static let signIn: String = "signin"
-    
+    static let balance: String = "balance"
+    static let wallet: String = "getwallet"
     
     // balance
-    static let initialDollarBalance = 0
+    static let initialCashBalance: Double = 0
 }

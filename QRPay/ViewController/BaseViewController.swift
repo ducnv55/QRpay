@@ -10,6 +10,7 @@ import UIKit
 import FBSDKLoginKit
 import FacebookCore
 import FacebookLogin
+import Alamofire
 
 class BaseViewController: UIViewController {
 
@@ -19,12 +20,14 @@ class BaseViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view.
     }
     
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        self.checkLogin()
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        checkLogin { (status) in
+            print("LOGIN STATUS: \(status)")
+        }
+        self.navigationController?.navigationBar.isHidden = false
     }
 
     override func didReceiveMemoryWarning() {
@@ -32,10 +35,24 @@ class BaseViewController: UIViewController {
         // Dispose of any resources that can be recreated.
     }
     
-    func checkLogin() {
-        if let accessToken = AccessToken.current {
-            print(accessToken)
+    func moneyFormat(amount: Double, isShowingFractionDigit: Bool = false) -> String {
+        let numberFormatter = NumberFormatter()
+        numberFormatter.groupingSeparator = ","
+        numberFormatter.groupingSize = 3
+        numberFormatter.usesGroupingSeparator = true
+        if isShowingFractionDigit {
+            numberFormatter.decimalSeparator = "."
+            numberFormatter.numberStyle = .decimal
+            numberFormatter.maximumFractionDigits = 3
+        }
+        return numberFormatter.string(from: amount as NSNumber)!
+    }
+    
+    func checkLogin(completion: @escaping(_ status: Bool) -> Void) {
+        if let _ = AccessToken.current {
+            completion(true)
         } else {
+            completion(false)
             let loginViewController = self.storyboard?.instantiateViewController(withIdentifier: "loginViewController") as! LoginViewController
             self.present(loginViewController, animated: false, completion: nil)
         }

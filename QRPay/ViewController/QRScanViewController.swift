@@ -8,13 +8,15 @@
 
 import UIKit
 import AVFoundation
-import FBSDKLoginKit
-import FacebookCore
-import FacebookLogin
+import Alamofire
+import SwiftSocket
 
-class QRScanViewController: UIViewController {
+class QRScanViewController: BaseViewController {
     
+    var userID: String?
     var captureSession = AVCaptureSession()
+    
+    var isAllowScanning = true
     
     var videoPreviewLayer: AVCaptureVideoPreviewLayer?
     var qrCodeFrameView: UIView?
@@ -24,10 +26,6 @@ class QRScanViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         qrScanning()
-    }
-    
-    override func viewDidAppear(_ animated: Bool) {
-        self.checkLogin()
     }
     
     func qrScanning() {
@@ -55,7 +53,6 @@ class QRScanViewController: UIViewController {
             // Set delegate and use the default dispatch queue to execute the call back
             captureMetadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
             captureMetadataOutput.metadataObjectTypes = supportedCodeTypes
-            //            captureMetadataOutput.metadataObjectTypes = [AVMetadataObject.ObjectType.qr]
             
         } catch {
             // If any error occurs, simply print it out and don't continue any more.
@@ -72,10 +69,6 @@ class QRScanViewController: UIViewController {
         // Start video capture.
         captureSession.startRunning()
         
-        // Move the message label and top bar to the front
-//        view.bringSubview(toFront: messageLabel)
-//        view.bringSubview(toFront: topView)
-        
         // Initialize QR Code Frame to highlight the QR code
         qrCodeFrameView = UIView()
         
@@ -86,22 +79,6 @@ class QRScanViewController: UIViewController {
             view.bringSubview(toFront: qrCodeFrameView)
         }
     }
-    
-    func checkLogin() {
-        if let accessToken = AccessToken.current {
-            print(accessToken)
-        } else {
-            let loginViewController = self.storyboard?.instantiateViewController(withIdentifier: "loginViewController") as! LoginViewController
-            self.present(loginViewController, animated: false, completion: nil)
-        }
-    }
-    
-//    @IBAction func logout(_ sender: Any) {
-//        let loginManager = FBSDKLoginManager()
-//        loginManager.logOut()
-//        let loginViewController = self.storyboard?.instantiateViewController(withIdentifier: "loginViewController")
-//        self.present(loginViewController!, animated: true, completion: nil)
-//    }
     
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
@@ -117,66 +94,75 @@ class QRScanViewController: UIViewController {
         
         let jsonData = json.data(using: .utf8)
         
-        let productObject = try? JSONSerialization.jsonObject(with: jsonData!, options: []) as! [String: Any]
-        let product = Product(name: productObject!["name"] as! String,
-                                 price: productObject!["price"] as! Double,
-                                 description: productObject?["description"] as? String)
-        print(product)
+        guard let object = try? JSONSerialization.jsonObject(with: jsonData!, options: []) as! [String: Any] else {
+            return
+        }
         
-        let alertPrompt = UIAlertController(title: "Product's information", message: "Product: \(product.name) \n Price: $\(product.price) \n BTC: 0.5143", preferredStyle: .actionSheet)
-        let confirmAction = UIAlertAction(title: "CHECKOUT", style: UIAlertActionStyle.default, handler: { (action) -> Void in
-            // prompt again to make sure user want to buy
-            let alertPrompt = UIAlertController(title: "Are you sure you want to buy this product?", message: "\(product.name) \n Price: $\(product.price) \n BTC: 0.5143", preferredStyle: .alert)
-            let confirmAction = UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: { (action) -> Void in
-                // post request to transfer coin
-                
-                
-            })
-            
-            let cancelAction = UIAlertAction(title: "Cancel", style: UIAlertActionStyle.destructive, handler: nil)
-            
-            alertPrompt.addAction(cancelAction)
-            alertPrompt.addAction(confirmAction)
-            
-            self.present(alertPrompt, animated: true, completion: nil)
-        })
-        
-        let cancelAction = UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil)
-        
-        alertPrompt.addAction(confirmAction)
-        alertPrompt.addAction(cancelAction)
-        
-        present(alertPrompt, animated: true, completion: nil)
+        if let dataType = object["type"] as? String {
+            switch dataType {
+            case "wallet":
+                if let destinationWalletAddress = object["address"] as? String, let _ = self.userID {
+                    // send POST request
+                    Alamofire.request("http://192.168.0.253:8000/sendtrans", method: .post, parameters: ["id":self.userID!, "txto": destinationWalletAddress, "ncoin": 100], encoding: URLEncoding.default, headers: nil).responseJSON(completionHandler: { (response) in
+                        print("request done")
+                        switch response.result {
+                        case .success:
+                            print("response: \(response)")
+                            let alertPrompt = UIAlertController(title: "Response", message: "\(response.description)", preferredStyle: .actionSheet)
+                            let confirmAction = UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: { (action) -> Void in
+                                // transfer coin successfully
+                                self.isAllowScanning = true
+                                self.navigationController?.popViewController(animated: true)
+                            })
+                            alertPrompt.addAction(confirmAction)
+                            
+                            self.present(alertPrompt, animated: true, completion: nil)
+                        case .failure(let error):
+                            print("error: \(error)")
+                        }
+                    })
+                }
+            case "card":
+                if let cardValue = object["value"] as? String, let _ = self.userID {
+                    // create notification that card is scanned
+                    NotificationCenter.default.post(name: .card, object: ["value": Double(cardValue)!])
+                }
+            case "product":
+                if let productName = object["name"] as? String, let price = object["price"] as? Double, let _ = self.userID {
+                    
+                    let alertPrompt = UIAlertController(title: "PRODUCT DETECTED!", message: "Product: \(productName) \n Price: $\(price) \n Coin: \(self.moneyFormat(amount: price / 69.96, isShowingFractionDigit: true))", preferredStyle: .actionSheet)
+                    let confirmAction = UIAlertAction(title: "CHECKOUT", style: UIAlertActionStyle.default, handler: { (action) -> Void in
+                        // prompt again to make sure user want to buy
+                        let alertPrompt = UIAlertController(title: "Are you sure you want to buy this product?", message: "\(productName) \n Price: $\(price) \n Coin: \(self.moneyFormat(amount: price / 69.96, isShowingFractionDigit: true))", preferredStyle: .alert)
+                        let confirmAction = UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: { (action) -> Void in
+                            // post request to transfer coin
+                            
+                        })
+                        
+                        let cancelAction = UIAlertAction(title: "Cancel", style: .destructive, handler: { (_) in
+                            self.navigationController?.popViewController(animated: true)
+                        })
+                        
+                        alertPrompt.addAction(cancelAction)
+                        alertPrompt.addAction(confirmAction)
+                        
+                        self.present(alertPrompt, animated: true, completion: nil)
+                    })
+                    
+                    let cancelAction = UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil)
+                    
+                    alertPrompt.addAction(confirmAction)
+                    alertPrompt.addAction(cancelAction)
+                    
+                    present(alertPrompt, animated: true, completion: nil)
+                }
+            default:
+                print("default")
+            }
+        }
+        print(object)
     }
-    
-//    @IBAction func insertMoneyDidTapped(_ sender: Any) {
-//        let alertPrompt = UIAlertController(title: "GET MORE COIN", message: "", preferredStyle: .alert)
-//        let confirmAction = UIAlertAction(title: "Confirm", style: .default) { (_) in
-//            if let field = alertPrompt.textFields?[0] {
-//                // store your data
-//                UserDefaults.standard.set(field.text, forKey: "userEmail")
-//                UserDefaults.standard.synchronize()
-//            } else {
-//                // user did not fill field
-//            }
-//        }
-//
-//        alertPrompt.addTextField { (textfield) in
-//            textfield.placeholder = "Number of coins"
-//            textfield.keyboardType = .numberPad
-//        }
-//
-//        let cancelAction = UIAlertAction(title: "Cancel", style: UIAlertActionStyle.destructive, handler: nil)
-//
-//        alertPrompt.addAction(cancelAction)
-//        alertPrompt.addAction(confirmAction)
-//
-//        present(alertPrompt, animated: true, completion: nil)
-//    }
 }
-
-
-
 
 extension QRScanViewController: AVCaptureMetadataOutputObjectsDelegate {
     
@@ -184,7 +170,6 @@ extension QRScanViewController: AVCaptureMetadataOutputObjectsDelegate {
         // Check if the metadataObjects array is not nil and it contains at least one object.
         if metadataObjects.count == 0 {
             qrCodeFrameView?.frame = CGRect.zero
-//            messageLabel.text = "No QR code is detected"
             return
         }
         
@@ -196,11 +181,15 @@ extension QRScanViewController: AVCaptureMetadataOutputObjectsDelegate {
             let barCodeObject = videoPreviewLayer?.transformedMetadataObject(for: metadataObj)
             qrCodeFrameView?.frame = barCodeObject!.bounds
             
-            if metadataObj.stringValue != nil {
+            if metadataObj.stringValue != nil, isAllowScanning {
+                isAllowScanning = false
                 itemInfo(json: metadataObj.stringValue!)
-//                messageLabel.text = metadataObj.stringValue
             }
         }
     }
     
+}
+
+extension Notification.Name {
+    static let card = Notification.Name("card")
 }
