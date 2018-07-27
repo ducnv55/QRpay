@@ -13,6 +13,12 @@ import FacebookLogin
 import SDWebImage
 import Alamofire
 
+enum ScanType: String {
+    case wallet = "wallet"
+    case card = "card"
+    case product = "product"
+}
+
 class HomeViewController: BaseViewController {
 
     @IBOutlet weak var avatarImageView: UIImageView!
@@ -31,19 +37,26 @@ class HomeViewController: BaseViewController {
     
     var isAllowGetUserInfo = true
     
+    var isGetCoinBalanceDone = false
+    var isGetAvatarDone = false
+    
+    // loading indicator
+    @IBOutlet weak var loadingIndicatorView: UIView!
+    @IBOutlet weak var activityIndicatorView: UIActivityIndicatorView!
+    
     // alert viewcontroller
     var alertVC = UIAlertController()
     var totalRequestCash: Double = 0
     
+    // transHash
+    var transHashes: [String] = []
+    
     override func viewDidLoad() {
         super.viewDidLoad()
+        self.tabBarController?.viewControllers?.forEach { let _ = $0.view }
+        startIndicator()
         initCashBalance()
         notificationListener()
-        
-        
-        let imageViewTapGesture = UITapGestureRecognizer(target: self, action: #selector(avatarDidTapped))
-        avatarImageView.isUserInteractionEnabled = true
-        avatarImageView.addGestureRecognizer(imageViewTapGesture)
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -55,19 +68,31 @@ class HomeViewController: BaseViewController {
                 getFacebookUserInfo()
                 isAllowGetUserInfo = false
             }
-            self.getWalletAddress { (walletAdderss) in
-                self.walletAddress = walletAdderss
-            }
-            self.getCoinBalance { (amount) in
-                self.coinBalance = amount
-                self.coinBalanceLabel.text = "\(self.moneyFormat(amount: amount, isShowingFractionDigit: true))"
+            showBalance()
+        }
+    }
+    
+    private func showBalance() {
+        if let coinBalance = (UIApplication.shared.delegate as! AppDelegate).userInfo.coinBalance {
+            stopIndicator()
+            self.coinBalance = coinBalance
+            self.coinBalanceLabel.text = "\(self.moneyFormat(amount: coinBalance, isShowingFractionDigit: true))"
+        } else {
+            if let tabBarController = self.tabBarController as? TabBarController {
+                tabBarController.getCoinBalance { (amount) in
+                    self.isGetCoinBalanceDone = true
+                    if self.isGetAvatarDone {
+                        self.stopIndicator()
+                    }
+                    self.coinBalanceLabel.text = "\(self.moneyFormat(amount: amount, isShowingFractionDigit: true))"
+                }
             }
         }
     }
     
     private func initCashBalance() {
         self.cashBalance = Const.initialCashBalance
-        cashBalanceLabel.text = "\(self.moneyFormat(amount: Const.initialCashBalance))"
+        cashBalanceLabel.text = "\(self.moneyFormat(amount: Const.initialCashBalance, isShowingFractionDigit: true))"
     }
 
     override func didReceiveMemoryWarning() {
@@ -98,7 +123,12 @@ class HomeViewController: BaseViewController {
                     let profilePicture = res["picture"] as? [String:Any]
                     if let profilePictureData = profilePicture!["data"] as? [String:Any] {
                         if let profilePictureUrlString = profilePictureData["url"] as? String {
-                            self.avatarImageView.sd_setImage(with: URL(string: profilePictureUrlString), completed: nil)
+                            self.isGetAvatarDone = true
+                            if self.isGetCoinBalanceDone {
+                                self.stopIndicator()
+                            }
+                            self.avatarImageView.sd_setImage(with: URL(string:
+                                profilePictureUrlString), completed: nil)
                         }
                     }
                 }
@@ -122,56 +152,10 @@ class HomeViewController: BaseViewController {
         self.present(loginViewController, animated: false, completion: nil)
     }
     
-    // out
-    @IBAction func didRequestCoinTapped(_ sender: Any) {
-    }
-    
-    
-    // MARK: GET COIN & WALLET
-    func getWalletAddress(completion: @escaping(_ walletAddress: String) -> Void) {
-        // get wallet address
-        if let userID = self.userID {
-            Alamofire.request("\(Const.baseUrl)\(Const.wallet)", method: .post, parameters: ["id":userID], encoding: URLEncoding.default, headers: nil).responseJSON(completionHandler: { (response) in
-                print("WALLET request done")
-                switch response.result {
-                case .success:
-                    if let walletObject = response.result.value as? [String:Any] {
-                        if let walletAddress = walletObject["wallet"] as? String {
-                            print("WALLET address: \(walletAddress)")
-                            completion(walletAddress)
-                        }
-                    }
-                case .failure(let error):
-                    print("WALLET error: \(error)")
-                }
-            })
-        }
-    }
-    
-    func getCoinBalance(completion: @escaping(_ balance: Double) -> Void) {
-        // get coin balance
-        if let userID = self.userID {
-            print("\(Const.baseUrl)\(Const.balance)")
-            Alamofire.request("\(Const.baseUrl)\(Const.balance)", method: .post, parameters: ["id":userID], encoding: URLEncoding.default, headers: nil).responseJSON(completionHandler: { (response) in
-                print("BALANCE request done")
-                switch response.result {
-                case .success:
-                    print("balance response: \(response)")
-                    if let responseObject = response.result.value as? [String:Any] {
-                        if let coinBalance = responseObject["balance"] as? String {
-                            completion(Double(coinBalance)!)
-                        }
-                    }
-                case .failure(let error):
-                    print("BALANCE error: \(error)")
-                }
-            })
-        }
-    }
-    
     // MARK: NOTIFICATION LISTENER
     private func notificationListener() {
         NotificationCenter.default.addObserver(self, selector: #selector(cardScanned(_:)), name: .card, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(transComplete(_:)), name: .trans, object: nil)
     }
     
     @objc func cardScanned(_ notification: Notification) {
@@ -190,13 +174,55 @@ class HomeViewController: BaseViewController {
         }
     }
     
+    @objc func transComplete(_ notification: Notification) {
+        if let transDict = notification.object as? [String:Any] {
+            if let coinAmount = transDict["ncoin"] as? Double, let coinBalance = (UIApplication.shared.delegate as! AppDelegate).userInfo.coinBalance {
+                
+                if let type = transDict["type"] as? String, type == "request" {
+                    // update coin balance
+                    (UIApplication.shared.delegate as! AppDelegate).userInfo.setCoinBalance(coinBalance: coinBalance + coinAmount)
+                    self.coinBalance = coinBalance + coinAmount
+                    self.coinBalanceLabel.text = "\(self.moneyFormat(amount: coinBalance + coinAmount, isShowingFractionDigit: true))"
+                    
+                    // update cash balance
+                    self.cashBalance = self.cashBalance - coinAmount * 69.96
+                    self.cashBalanceLabel.text = "\(self.moneyFormat(amount: self.cashBalance, isShowingFractionDigit: true))"
+                    self.totalRequestCash = 0
+                }
+                
+                if let type = transDict["type"] as? String, type == "wallet" || type == "product" {
+                    // update coin balance
+                    (UIApplication.shared.delegate as! AppDelegate).userInfo.setCoinBalance(coinBalance: coinBalance - coinAmount)
+                    self.coinBalance = coinBalance - coinAmount
+                    self.coinBalanceLabel.text = "\(self.moneyFormat(amount: coinBalance - coinAmount, isShowingFractionDigit: true))"
+                }
+            }
+        }
+    }
+    
+    // MARK: Loading Indicator
+    
+    private func startIndicator() {
+        self.view.bringSubview(toFront: loadingIndicatorView)
+        self.view.bringSubview(toFront: activityIndicatorView)
+        loadingIndicatorView.isHidden = false
+        activityIndicatorView.isHidden = false
+        activityIndicatorView.startAnimating()
+    }
+    
+    private func stopIndicator() {
+        loadingIndicatorView.isHidden = true
+        activityIndicatorView.isHidden = true
+        activityIndicatorView.stopAnimating()
+    }
     
     // MARK: - Navigation
     @IBAction func didSendCoinTapped(_ sender: Any) {
-        navigateToQRScan()
+        navigateToQRScan(scanType: .wallet, coinBalance: self.coinBalance)
     }
     
     @IBAction func requestCoinDidTapped(_ sender: Any) {
+        guard let userID = self.userID else {return}
         let alert = UIAlertController(title: "BUY COIN", message: "Enter $ or Coin you want to buy", preferredStyle: .alert)
         
         alert.addTextField { (textField) in
@@ -216,14 +242,12 @@ class HomeViewController: BaseViewController {
             if self.totalRequestCash > self.cashBalance {
                 cashAlert.title = "WARNING!!!"
                 cashAlert.message = "Your cash balance is not enough."
-            } else {
-                self.cashBalance = self.cashBalance - self.totalRequestCash
-                self.cashBalanceLabel.text = "\(self.moneyFormat(amount: self.cashBalance))"
             }
             cashAlert.addAction(UIAlertAction(title: "OK", style: .default, handler: { (_) in
-                
+                if self.totalRequestCash <= self.cashBalance {
+                    self.requestCoin(userID: userID, amount: self.totalRequestCash / Const.coinValue, type: "request")
+                }
             }))
-            
             self.present(cashAlert, animated: true, completion: nil)
         }))
         
@@ -239,7 +263,7 @@ class HomeViewController: BaseViewController {
     @objc func moneyTextChange(_ sender: UITextField) {
         let coinTextField = self.alertVC.textFields![1]
         if let cash = sender.text, !cash.isEmpty {
-            coinTextField.text = "\(Double(cash)! / 69.96)"
+            coinTextField.text = "\(Double(cash)! / Const.coinValue)"
             self.totalRequestCash = Double(cash)!
         } else {
             coinTextField.text = ""
@@ -249,33 +273,93 @@ class HomeViewController: BaseViewController {
     @objc func coinTextChange(_ sender: UITextField) {
         let moneyTextField = self.alertVC.textFields![0]
         if let coin = sender.text, !coin.isEmpty {
-            moneyTextField.text = "\(Double(coin)! * 69.96)"
-            self.totalRequestCash = Double(coin)! * 69.96
+            moneyTextField.text = "\(Double(coin)! * Const.coinValue)"
+            self.totalRequestCash = Double(coin)! * Const.coinValue
         } else {
             moneyTextField.text = ""
         }
     }
     
+    private func requestCoin(userID: String, amount: Double, type: String) {
+        
+        let params: [String: Any] = ["id": userID, "ncoin": amount, "type": type]
+        if let jsonParams = self.jsonEncode(dict: params) {
+            print("params: \(jsonParams)")
+            self.manager.defaultSocket.on(clientEvent: .connect) {_, _ in
+                print("socket connected")
+            }
+            
+            self.manager.defaultSocket.on("transcomplete") {data, _ in
+                print("OKOKOK \(data)")
+                if let transHash = self.getTransHash(data: data) {
+                    if !self.checkDuplicateTransHash(transHash: transHash) {
+                        self.transHashes.append(transHash)
+                        NotificationCenter.default.post(name: .trans, object: ["ncoin":amount, "type": type])
+                        NotificationCenter.default.post(name: .noti, object: data[0])
+                    }
+                }
+            }
+            
+            if self.manager.defaultSocket.status == .connected {
+                self.manager.defaultSocket.emit("sendtrans", params)
+            } else {
+                self.manager.defaultSocket.on("sendtransios") {data, _ in
+                    print("sendtransresponse \(data)")
+                    
+                    self.manager.defaultSocket.emit("sendtrans", params)
+                }
+                self.manager.defaultSocket.connect()
+            }
+        }
+    }
+                
+    private func getTransHash(data: [Any]) -> String? {
+        if let dataObj = data[0] as? [String:Any] {
+            if let transHash = dataObj["transHash"] as? String {
+                return transHash
+            }
+            return nil
+        } else {
+            return nil
+        }
+    }
+    
+    private func checkDuplicateTransHash(transHash: String) -> Bool {
+        if self.transHashes.count > 0 {
+            for hash in self.transHashes {
+                if hash == transHash {
+                    return true
+                }
+            }
+            return false
+        } else {
+            return false
+        }
+    }
+    
     @IBAction func getMoneyDidTapped(_ sender: Any) {
-        navigateToQRScan()
+        navigateToQRScan(scanType: .card, coinBalance: 0)
     }
     
     @IBAction func shoppingDidTapped(_ sender: Any) {
-        navigateToQRScan()
+        navigateToQRScan(scanType: .product, coinBalance: self.coinBalance)
     }
     
-    private func navigateToQRScan() {
-        let qrVC = self.storyboard?.instantiateViewController(withIdentifier: "qrViewController") as! QRScanViewController
-        qrVC.userID = self.userID
-        self.navigationController?.pushViewController(qrVC, animated: true)
-    }
-    
-    // Mypage: show current user's qr code's wallet
-    @objc func avatarDidTapped() {
-        if let myPageVC = self.storyboard?.instantiateViewController(withIdentifier: "mypageViewController") as? MyPageViewController {
-            myPageVC.walletAddress = self.walletAddress
-            self.navigationController?.pushViewController(myPageVC, animated: true)
+    @IBAction func transHistoryDidTapped(_ sender: Any) {
+        if let userID = userID {
+            let transHistoryVC = self.storyboard?.instantiateViewController(withIdentifier: "transHistoryVC") as! TransactionHistoryViewController
+            transHistoryVC.userID = userID
+            self.navigationController?.pushViewController(transHistoryVC, animated: true)
         }
     }
-
+    
+    private func navigateToQRScan(scanType: ScanType, coinBalance: Double? = nil) {
+        let qrVC = self.storyboard?.instantiateViewController(withIdentifier: "qrViewController") as! QRScanViewController
+        qrVC.userID = self.userID
+        qrVC.scanType = scanType
+        if let coinBalance = coinBalance {
+            qrVC.coinBalance = coinBalance
+        }
+        self.navigationController?.pushViewController(qrVC, animated: true)
+    }
 }

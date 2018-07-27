@@ -9,11 +9,23 @@
 import UIKit
 import AVFoundation
 import Alamofire
-import SwiftSocket
 
 class QRScanViewController: BaseViewController {
     
+    var scanType: ScanType?
     var userID: String?
+    var totalRequestCoin: Double = 0
+    var coinBalance: Double?
+    var alertVC = UIAlertController()
+    
+    // loading indicator
+    @IBOutlet weak var loadingIndicatorView: UIView!
+    @IBOutlet weak var activityIndicatorView: UIActivityIndicatorView!
+    
+    // transHash
+    var transHashes: [String] = []
+    
+    // QR properties
     var captureSession = AVCaptureSession()
     
     var isAllowScanning = true
@@ -25,6 +37,10 @@ class QRScanViewController: BaseViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        if let scanType = self.scanType {
+            self.navigationItem.title = scanType.rawValue
+        }
         qrScanning()
     }
     
@@ -101,60 +117,16 @@ class QRScanViewController: BaseViewController {
         if let dataType = object["type"] as? String {
             switch dataType {
             case "wallet":
-                if let destinationWalletAddress = object["address"] as? String, let _ = self.userID {
-                    // send POST request
-                    Alamofire.request("http://192.168.0.253:8000/sendtrans", method: .post, parameters: ["id":self.userID!, "txto": destinationWalletAddress, "ncoin": 100], encoding: URLEncoding.default, headers: nil).responseJSON(completionHandler: { (response) in
-                        print("request done")
-                        switch response.result {
-                        case .success:
-                            print("response: \(response)")
-                            let alertPrompt = UIAlertController(title: "Response", message: "\(response.description)", preferredStyle: .actionSheet)
-                            let confirmAction = UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: { (action) -> Void in
-                                // transfer coin successfully
-                                self.isAllowScanning = true
-                                self.navigationController?.popViewController(animated: true)
-                            })
-                            alertPrompt.addAction(confirmAction)
-                            
-                            self.present(alertPrompt, animated: true, completion: nil)
-                        case .failure(let error):
-                            print("error: \(error)")
-                        }
-                    })
+                if let scanType = self.scanType, dataType == scanType.rawValue {
+                    self.walletScan(object)
                 }
             case "card":
-                if let cardValue = object["value"] as? String, let _ = self.userID {
-                    // create notification that card is scanned
-                    NotificationCenter.default.post(name: .card, object: ["value": Double(cardValue)!])
+                if let scanType = scanType, dataType == scanType.rawValue {
+                    self.cardScan(object)
                 }
             case "product":
-                if let productName = object["name"] as? String, let price = object["price"] as? Double, let _ = self.userID {
-                    
-                    let alertPrompt = UIAlertController(title: "PRODUCT DETECTED!", message: "Product: \(productName) \n Price: $\(price) \n Coin: \(self.moneyFormat(amount: price / 69.96, isShowingFractionDigit: true))", preferredStyle: .actionSheet)
-                    let confirmAction = UIAlertAction(title: "CHECKOUT", style: UIAlertActionStyle.default, handler: { (action) -> Void in
-                        // prompt again to make sure user want to buy
-                        let alertPrompt = UIAlertController(title: "Are you sure you want to buy this product?", message: "\(productName) \n Price: $\(price) \n Coin: \(self.moneyFormat(amount: price / 69.96, isShowingFractionDigit: true))", preferredStyle: .alert)
-                        let confirmAction = UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: { (action) -> Void in
-                            // post request to transfer coin
-                            
-                        })
-                        
-                        let cancelAction = UIAlertAction(title: "Cancel", style: .destructive, handler: { (_) in
-                            self.navigationController?.popViewController(animated: true)
-                        })
-                        
-                        alertPrompt.addAction(cancelAction)
-                        alertPrompt.addAction(confirmAction)
-                        
-                        self.present(alertPrompt, animated: true, completion: nil)
-                    })
-                    
-                    let cancelAction = UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil)
-                    
-                    alertPrompt.addAction(confirmAction)
-                    alertPrompt.addAction(cancelAction)
-                    
-                    present(alertPrompt, animated: true, completion: nil)
+                if let scanType = scanType, dataType == scanType.rawValue {
+                    self.productScan(object)
                 }
             default:
                 print("default")
@@ -162,6 +134,222 @@ class QRScanViewController: BaseViewController {
         }
         print(object)
     }
+    
+    // MARK: QR SCAN TYPES
+    private func walletScan(_ object: [String: Any]) {
+        if let destinationWalletAddress = object["address"] as? String, let userID = self.userID {
+            // send POST request
+            let alertPrompt = UIAlertController(title: "WALLET DETECTED!", message: "Wallet address: \(destinationWalletAddress)", preferredStyle: .alert)
+            alertPrompt.addTextField { (textField) in
+                textField.keyboardType = .numberPad
+                textField.placeholder = "$ amount you want"
+                textField.addTarget(self, action: #selector(self.moneyTextChange(_:)), for: .editingChanged)
+            }
+            
+            alertPrompt.addTextField { (textField) in
+                textField.keyboardType = .numberPad
+                textField.placeholder = "Coin amount you want"
+                textField.addTarget(self, action: #selector(self.coinTextChange(_:)), for: .editingChanged)
+            }
+            
+            let confirmAction = UIAlertAction(title: "OK", style: .default, handler: { (_) in
+                let cashAlert = UIAlertController(title: "TRANSACTION IS PENDING...", message: "This transaction is mining.\nYour coin will be transfered automatically.", preferredStyle: .alert)
+                
+                if let coinBalance = self.coinBalance, self.totalRequestCoin > coinBalance {
+                    cashAlert.title = "WARNING!!!"
+                    cashAlert.message = "Your coin is not enough."
+                } else {
+                    // send coin using socket ui
+                    let moneyTextField = self.alertVC.textFields![1].text
+                    if let cashAmount = Double(moneyTextField!) {
+                        self.alertVC = cashAlert
+                        self.sendCoin(userID: userID, destinationWalletAddress: destinationWalletAddress, amount: cashAmount, type: object["type"] as! String)
+                    }
+                }
+                cashAlert.addAction(UIAlertAction(title: "OK", style: .default, handler: { (_) in
+                    self.navigationController?.popViewController(animated: true)
+                }))
+            })
+            
+            let cancelAction = UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: { (_) in
+                self.navigationController?.popViewController(animated: true)
+            })
+            
+            alertPrompt.addAction(confirmAction)
+            alertPrompt.addAction(cancelAction)
+            
+            self.alertVC = alertPrompt
+            
+            present(self.alertVC, animated: true, completion: nil)
+        }
+    }
+    
+    @objc func moneyTextChange(_ sender: UITextField) {
+        let coinTextField = self.alertVC.textFields![1]
+        if let cash = sender.text, !cash.isEmpty {
+            coinTextField.text = "\(Double(cash)! / Const.coinValue)"
+            self.totalRequestCoin = Double(cash)! / Const.coinValue
+        } else {
+            coinTextField.text = ""
+        }
+    }
+    
+    @objc func coinTextChange(_ sender: UITextField) {
+        let moneyTextField = self.alertVC.textFields![0]
+        if let coin = sender.text, !coin.isEmpty {
+            moneyTextField.text = "\(Double(coin)! * Const.coinValue)"
+            self.totalRequestCoin = Double(coin)!
+        } else {
+            moneyTextField.text = ""
+        }
+    }
+    
+    private func sendCoin(userID: String, destinationWalletAddress: String? = nil, amount: Double, type: String) {
+        
+        if let walletAddress = destinationWalletAddress {
+            // send coin to specific wallet address
+            let params: [String: Any] = ["id": userID, "txto": walletAddress, "ncoin": amount, "type": type]
+                self.sendTrans(params: params)
+        }
+    }
+    
+    private func cardScan(_ object: [String: Any]) {
+        if let cardValue = object["value"] as? String, let _ = self.userID {
+            // create notification that card is scanned
+            NotificationCenter.default.post(name: .card, object: ["value": Double(cardValue)!])
+        }
+    }
+    
+    private func productScan(_ object: [String: Any]) {
+        
+        guard let userID = self.userID else {return}
+        
+        if let productName = object["name"] as? String, let price = object["price"] as? Double, let destinationWalletAddr = object["txto"] as? String {
+            
+            self.totalRequestCoin = price / Const.coinValue
+            
+            let alertPrompt = UIAlertController(title: "PRODUCT DETECTED!", message: "Product: \(productName) \n Price: $\(price) \n Coin: \(self.moneyFormat(amount: price / Const.coinValue, isShowingFractionDigit: true))", preferredStyle: .actionSheet)
+            let confirmAction = UIAlertAction(title: "CHECKOUT", style: UIAlertActionStyle.default, handler: { (action) -> Void in
+                // prompt again to make sure user want to buy
+                let alertPrompt = UIAlertController(title: "Are you sure you want to buy this product?", message: "\(productName) \n Price: $\(price) \n Coin: \(self.moneyFormat(amount: price / Const.coinValue, isShowingFractionDigit: true))", preferredStyle: .alert)
+                let confirmAction = UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: { (action) -> Void in
+                    self.startIndicator()
+                    // post request to transfer coin
+                    let cashAlert = UIAlertController(title: "TRANSACTION IS PENDING...", message: "This transaction is mining.\nYour coin will be transfered automatically.", preferredStyle: .alert)
+                    
+                    if let coinBalance = self.coinBalance, self.totalRequestCoin > coinBalance {
+                        cashAlert.title = "WARNING!!!"
+                        cashAlert.message = "Your coin is not enough."
+                    } else {
+                        // send coin using socket ui
+                        self.alertVC = cashAlert
+                        self.sendCoin(userID: userID, destinationWalletAddress: destinationWalletAddr, amount: self.totalRequestCoin, type: object["type"] as! String)
+                    }
+                    cashAlert.addAction(UIAlertAction(title: "OK", style: .default, handler: { (_) in
+                        self.navigationController?.popViewController(animated: true)
+                    }))
+                })
+                
+                let cancelAction = UIAlertAction(title: "Cancel", style: .destructive, handler: { (_) in
+                    self.navigationController?.popViewController(animated: true)
+                })
+                
+                alertPrompt.addAction(cancelAction)
+                alertPrompt.addAction(confirmAction)
+                
+                self.present(alertPrompt, animated: true, completion: nil)
+            })
+            
+            let cancelAction = UIAlertAction(title: "Cancel", style: UIAlertActionStyle.cancel, handler: nil)
+            
+            alertPrompt.addAction(confirmAction)
+            alertPrompt.addAction(cancelAction)
+            
+            present(alertPrompt, animated: true, completion: nil)
+        }
+    }
+    
+    // MARK: Send Transaction
+    private func sendTrans(params: [String:Any]) {
+        
+        guard let jsonParams = jsonEncode(dict: params) else { return }
+        
+        print("send params: \(params)")
+        self.manager.defaultSocket.on(clientEvent: .connect) {_, _ in
+            print("socket connected")
+        }
+        
+        self.manager.defaultSocket.on("transcomplete") {data, _ in
+            print("OKOKOK \(data)")
+            if let transHash = self.getTransHash(data: data) {
+                if !self.checkDuplicateTransHash(transHash: transHash) {
+                    self.transHashes.append(transHash)
+                    self.transCompleted(params: params)
+                    self.pushNoti(data: data[0])
+                }
+            }
+        }
+        
+        if self.manager.defaultSocket.status == .connected {
+            self.stopIndicator()
+            self.present(self.alertVC, animated: true, completion: nil)
+            self.manager.defaultSocket.emit("sendtrans", jsonParams)
+        } else {
+            self.manager.defaultSocket.on("sendtransios") {data, _ in
+                print("sendtransresponse \(data)")
+                self.stopIndicator()
+                self.present(self.alertVC, animated: true, completion: nil)
+                self.manager.defaultSocket.emit("sendtrans", jsonParams)
+            }
+            self.manager.defaultSocket.connect()
+        }
+    }
+    
+    private func getTransHash(data: [Any]) -> String? {
+        if let dataObj = data[0] as? [String:Any] {
+            if let transHash = dataObj["transHash"] as? String {
+                return transHash
+            }
+            return nil
+        } else {
+            return nil
+        }
+    }
+    
+    private func checkDuplicateTransHash(transHash: String) -> Bool {
+        if self.transHashes.count > 0 {
+            for hash in self.transHashes {
+                if hash == transHash {
+                    return true
+                }
+            }
+            return false
+        } else {
+            return false
+        }
+    }
+    
+    private func transCompleted(params: [String:Any]) {
+        NotificationCenter.default.post(name: .trans, object: params)
+    }
+    
+    private func pushNoti(data: Any) {
+        NotificationCenter.default.post(name: .noti, object: data)
+    }
+    
+    private func startIndicator() {
+        loadingIndicatorView.isHidden = false
+        self.view.bringSubview(toFront: activityIndicatorView)
+        self.view.bringSubview(toFront: loadingIndicatorView)
+        activityIndicatorView.startAnimating()
+    }
+    
+    private func stopIndicator() {
+        activityIndicatorView.stopAnimating()
+        loadingIndicatorView.isHidden = true
+        activityIndicatorView.isHidden = true
+    }
+    
 }
 
 extension QRScanViewController: AVCaptureMetadataOutputObjectsDelegate {
@@ -192,4 +380,6 @@ extension QRScanViewController: AVCaptureMetadataOutputObjectsDelegate {
 
 extension Notification.Name {
     static let card = Notification.Name("card")
+    static let trans = Notification.Name("trans")
+    static let noti = Notification.Name("noti")
 }

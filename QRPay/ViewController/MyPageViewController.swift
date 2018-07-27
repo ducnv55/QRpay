@@ -11,12 +11,25 @@ import UIKit
 class MyPageViewController: BaseViewController {
 
     @IBOutlet weak var qrImageView: UIImageView!
-    var walletAddress: String!
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        self.navigationItem.title = "YOUR WALLET"
-        self.qrImageView.image = self.generateQRCode(from: walletAddress)
+        self.navigationItem.title = "MY WALLET"
+        if let walletAddress = (UIApplication.shared.delegate as! AppDelegate).userInfo.walletAddress {
+            let walletDict = ["type":"wallet","address":walletAddress]
+            if let jsonWallet = jsonEncode(dict: walletDict) {
+                self.qrImageView.image = self.generateQRCode(from: jsonWallet)
+            }
+        } else {
+            if let tabBarController = self.tabBarController as? TabBarController {
+                tabBarController.getWalletAddress { (walletAddress) in
+                    let walletDict = ["type":"wallet","address":walletAddress]
+                    if let jsonWallet = self.jsonEncode(dict: walletDict) {
+                        self.qrImageView.image = self.generateQRCode(from: jsonWallet)
+                    }
+                }
+            }
+        }
         // Do any additional setup after loading the view.
     }
     

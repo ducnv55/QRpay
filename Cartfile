@@ -1,4 +1,4 @@
 github "facebook/Facebook-SDK-Swift"
 github "rs/SDWebImage"
 github "Alamofire/Alamofire" ~> 4.7
-github "swiftsocket/SwiftSocket"
+github "socketio/socket.io-client-swift" ~> 13.2.0

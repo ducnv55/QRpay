@@ -40,14 +40,14 @@ class LoginViewController: BaseViewController {
                         }
                     })
                 }
-                self.dismiss(animated: true, completion: nil)
+                self.dismiss(animated: false, completion: nil)
             }
         }
     }
     
     private func didLogin(userID: String) {
         // post request to server to get account's wallet or create new wallet if first time login
-        Alamofire.request("http://192.168.0.253:8000/signin/", method: .post, parameters: ["id":userID], encoding: URLEncoding.default, headers: nil).responseJSON(completionHandler: { (response) in
+        Alamofire.request("\(Const.baseUrl)\(Const.signIn)", method: .post, parameters: ["id":userID], encoding: URLEncoding.default, headers: nil).responseJSON(completionHandler: { (response) in
             print("request done")
             switch response.result {
             case .success:
